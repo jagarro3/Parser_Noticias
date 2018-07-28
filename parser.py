@@ -7,6 +7,9 @@ import datetime
 from datetime import date, timedelta
 from connectMongoDB import connectionMongoDB
 
+baseUrlTo2011 = "https://elpais.com/tag/fecha/"
+baseUrlToCurrent = "https://elpais.com/hemeroteca/elpais/"
+
 def createUrl(d1, d2):
     '''
     Crear una lista con todas las combinacion de YearMesDay
@@ -20,14 +23,15 @@ def createUrl(d1, d2):
     delta = d2 - d1  # timedelta
     for i in range(delta.days + 1):
         if((d1 + timedelta(i)) < date(2012,1,1)):
-            _listCreateUrl.append("https://elpais.com/tag/fecha/" + (d1 + timedelta(i)).strftime("%Y%m%d"))
+            _listCreateUrl.append(baseUrlTo2011 + (d1 + timedelta(i)).strftime("%Y%m%d"))
         else:
             for x in ["/m", "/t", "/n"]:
-                _listCreateUrl.append("https://elpais.com/hemeroteca/elpais/" + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x)
+                _listCreateUrl.append(baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x)
 
-def parseNewsTo2011(url):
+
+def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
     listOfNews = [url]
-    # Loop para cada noticias teniendo en cuenta la paginacion de la web
+    # Loop para cada noticias teniendo en cuenta la paginación de la web
     for linkArticle in listOfNews:
         # Procesar pagina
         try:
@@ -36,69 +40,66 @@ def parseNewsTo2011(url):
             pass
 
         if r.ok:
-            isAnotherDom = False
             soupPage = BeautifulSoup(r.text, "lxml")
-            articles = soupPage.select('div .articulo__interior')
-            
-            # Si articles es [] es porque el año está entre el 2012-2016
-            if(articles == []):
-                articles = soupPage.select('div .article')
-                isAnotherDom = True
-            
-            # Obtener enlaces de paginación. Solo hasta el 2011 hay botón de paginación
-            if(not isAnotherDom):
-                nextButton = soupPage.find('li', class_="paginacion-siguiente")
-                listOfNews.append(nextButton.a['href'])
+            articles = soupPage.select(classArticle)
 
-            # Parsear noticias
-            for article in articles:
-                # Informacion de la noticia
-                try:
-                    if(not isAnotherDom):
-                        title = article.select('.articulo-titulo')[0]
-                        date = article.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
-                        link = title.select('a')[0].get('href')
-                        if("elpais.com" not in link):
-                            link = 'http://elpais.com' + link
-                        else:
-                            link = 'http:' + link
-                        author = article.select('.autor-nombre')[0]
+        if(hasPagination):
+            nextButton = soupPage.find('li', class_="paginacion-siguiente")
+            if(nextButton):
+                listOfNews.append(nextButton.a['href'])
+    
+        # Parsear noticias
+        for article in articles:
+            # Informacion de la noticia
+            try:
+                # Titulo y link
+                if(typeOfArticle == 1):
+                    title = article.select('.articulo-titulo')[0]
+                    link = title.select('a')[0].get('href')
+                    if("elpais.com" not in link):
+                        link = 'http://elpais.com' + link
                     else:
-                        #2012-2016
-                        title = article.select('h2')[0]
-                        link = 'http://elpais.com' + title.select('a')[0].get('href')
-                    
-                    # Comprobar que no haya sido insertado ya en MongoDB
-                    if(coleccion.find({"link": link}).count() == 0):
-                        # Cuerpo 
-                        r = requests.get(link)
-                        if r.ok:
-                            soupNews = BeautifulSoup(r.text, "lxml")
-                            if(not isAnotherDom):
-                                bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"}).get_text()
-                            else:
-                                bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"}).get_text()
-                                date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
-                                author = soupNews.select('.autor-nombre')[0]
-                        # Guardar en MongoDB
-                        savePosts(link, date, title.get_text(), author.get_text(), bodyArticle)
-                except Exception as e:
-                    continue
+                        link = 'http:' + link
+                elif(typeOfArticle == 2):
+                    title = article.find(title="Ver noticia")
+                    link = 'http://elpais.com' + title['href']
+   
+                # Comprobar que no haya sido insertado ya en MongoDB
+                if(coleccion.find({"link": link}).count() == 0):
+                    # Cuerpo, autor y fecha
+                    r = requests.get(link)
+                    if r.ok:
+                        soupNews = BeautifulSoup(r.text, "lxml")
+                        bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"}).get_text()
+                        date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
+                        author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
+                        print("PASA")
+                        listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
+                    # Guardar en MongoDB
+                    savePosts(link, date, title.get_text(), author.get_text() if author != "" else "", listTags, bodyArticle)
+            except Exception as e:
+                print("Error:", e, link)
+                continue
 
 def setParser():
-    # Loop para cada link generado (yearFrom to yearTo)
+    # parserGeneric(url, classArticle, hasPagination, typeOfArticle):
+    # typeOfArticle = (1: 1976 - 2011), (2: 2012-2016)
     for url in _listCreateUrl:
         print(url)
-        parseNewsTo2011(url)
-
+        if(baseUrlTo2011 in url):
+            parserGeneric(url, 'div .articulo__interior', True, 1)
+        # elif(baseUrlToCurrent in url):
+        #     parserGeneric(url, 'div .article', False, 2)
+        
 # Guardar noticias en MongoDB
-def savePosts(link, date, title, author, article):
+def savePosts(link, date, title, author, listTags, article):
     coleccion.save(
         {
             'link': link,
             'titulo': title,
             'fecha': date,
             'autor': author,
+            'tags': listTags,
             'noticia': article
         })
 
