@@ -7,7 +7,6 @@ import datetime
 from datetime import date, timedelta
 from connectMongoDB import connectionMongoDB
 
-
 def createUrl(d1, d2):
     '''
     Crear una lista con todas las combinacion de YearMesDay
@@ -37,14 +36,14 @@ def parseNewsTo2011(url):
             pass
 
         if r.ok:
-            isAnotherDom = False;
+            isAnotherDom = False
             soupPage = BeautifulSoup(r.text, "lxml")
             articles = soupPage.select('div .articulo__interior')
             
             # Si articles es [] es porque el año está entre el 2012-2016
             if(articles == []):
                 articles = soupPage.select('div .article')
-                isAnotherDom = True;
+                isAnotherDom = True
             
             # Obtener enlaces de paginación. Solo hasta el 2011 hay botón de paginación
             if(not isAnotherDom):
@@ -92,6 +91,7 @@ def setParser():
         print(url)
         parseNewsTo2011(url)
 
+# Guardar noticias en MongoDB
 def savePosts(link, date, title, author, article):
     coleccion.save(
         {
@@ -102,10 +102,13 @@ def savePosts(link, date, title, author, article):
             'noticia': article
         })
 
-
-def checkDates(d1, d2):        
-    if(d1 <= d2):
-        return d2 <= datetime.date.today()
+# Comprobar rango de fechas
+def checkDates(d1, d2): 
+    if(d1 >= date(1976,1,1)):    
+        if(d1 <= d2):
+            return d2 <= datetime.date.today()
+        else:
+            return False
     else:
         return False
 
@@ -113,16 +116,22 @@ if __name__ == "__main__":
     os.system("cls")
     if len(sys.argv) < 4:
         print("Introduce un rango de fecha Dia-Mes-Año y el nombre de la coleccion MongoDB")
-        print("-> Ejemplo: python .\parserElPais.py [02-06-1970] [12-11-1986] nombreColeccion")
+        print("-> Ejemplo: python .\parserElPais.py [02-06-1976] [12-11-1986] nombreColeccion")
+        print("-> Nota: Año mínimo 1976")
     else:
         d1 = date(int(sys.argv[1].split('-')[2]), int(sys.argv[1].split('-')[1]), int(sys.argv[1].split('-')[0]))
         d2 = date(int(sys.argv[2].split('-')[2]), int(sys.argv[2].split('-')[1]), int(sys.argv[2].split('-')[0]))
-        if(d1 <= d2):
-            if(d2 <= datetime.date.today()):
-                coleccion = connectionMongoDB(sys.argv[3])
-                start_time = time.time()
-                _listCreateUrl = []
-                createUrl(d1, d2)
-                setParser()
-                elapsed_time = time.time() - start_time
-                print("Tiempo ejecución:", elapsed_time)
+        if(checkDates(d1,d2)):
+            coleccion = connectionMongoDB(sys.argv[3])
+            start_time = time.time()
+            _listCreateUrl = []
+            createUrl(d1, d2)
+            setParser()
+            elapsed_time = time.time() - start_time
+            print("Tiempo ejecución:", elapsed_time)
+        else:
+            print("Rango de fechas incorrecto")
+            print("-------------------------------------------------------")
+            print("Posibles causas:")
+            print("-> La primera fecha tiene que ser menor que la segunda")
+            print("-> El año de inicio es como mínimo el 1-1-1976")
