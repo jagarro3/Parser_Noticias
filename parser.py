@@ -7,7 +7,28 @@ import datetime
 from datetime import date, timedelta
 from connectMongoDB import connectionMongoDB
 
-def createUrl(d1, d2):
+baseUrlTo2011 = "https://elpais.com/tag/fecha/"
+baseUrlToCurrent = "https://elpais.com/hemeroteca/elpais/"
+
+# def createUrl(d1, d2):
+#     '''
+#     Crear una lista con todas las combinacion de YearMesDay
+#     Año inicio ElPais: 1976
+#     Año final ElPais con el mismo formato de url: 2011
+#     1976 - 2011:
+#         Formato final: https://elpais.com/tag/fecha/YearMesDay
+#     2012 - Actual
+#         Formato final: https://elpais.com/hemeroteca/elpais/YearMesDay/(m|t|n)
+#     '''
+#     delta = d2 - d1  # timedelta
+#     for i in range(delta.days + 1):
+#         if((d1 + timedelta(i)) < date(2012,1,1)):
+#             _listCreateUrl.append(baseUrlTo2011 + (d1 + timedelta(i)).strftime("%Y%m%d"))
+#         else:
+#             for x in ["/m", "/t", "/n"]:
+#                 _listCreateUrl.append(baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x)
+
+def setTypeParser(d1, d2):
     '''
     Crear una lista con todas las combinacion de YearMesDay
     Año inicio ElPais: 1976
@@ -16,18 +37,27 @@ def createUrl(d1, d2):
         Formato final: https://elpais.com/tag/fecha/YearMesDay
     2012 - Actual
         Formato final: https://elpais.com/hemeroteca/elpais/YearMesDay/(m|t|n)
+
+    parserGeneric(url, classArticle, hasPagination, typeOfArticle):
+    typeOfArticle = (1: 1976-2011, 2016-Current), (2: 2012-2015)
     '''
     delta = d2 - d1  # timedelta
     for i in range(delta.days + 1):
         if((d1 + timedelta(i)) < date(2012,1,1)):
-            _listCreateUrl.append("https://elpais.com/tag/fecha/" + (d1 + timedelta(i)).strftime("%Y%m%d"))
+            url = baseUrlTo2011 + (d1 + timedelta(i)).strftime("%Y%m%d")
+            parserGeneric(url, 'div .articulo__interior', True, 1)
+        elif((d1 + timedelta(i)) < date(2016,1,1)):
+            for x in ["/m", "/t", "/n"]:
+                url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
+                parserGeneric(url, 'div .article', False, 2)
         else:
             for x in ["/m", "/t", "/n"]:
-                _listCreateUrl.append("https://elpais.com/hemeroteca/elpais/" + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x)
+                url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
+                parserGeneric(url, 'div .articulo__interior', False, 1)
 
-def parseNewsTo2011(url):
+def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
     listOfNews = [url]
-    # Loop para cada noticias teniendo en cuenta la paginacion de la web
+    # Loop para cada noticias teniendo en cuenta la paginación de la web
     for linkArticle in listOfNews:
         # Procesar pagina
         try:
@@ -35,82 +65,71 @@ def parseNewsTo2011(url):
         except Exception as e:
             pass
 
-        if r.ok:
-            isAnotherDom = False
+        if r.status_code == requests.codes.ok:
             soupPage = BeautifulSoup(r.text, "lxml")
-            articles = soupPage.select('div .articulo__interior')
+            articles = soupPage.select(classArticle)
             
-            # Si articles es [] es porque el año está entre el 2012-2016
-            if(articles == []):
-                articles = soupPage.select('div .article')
-                isAnotherDom = True
-            
-            # Obtener enlaces de paginación. Solo hasta el 2011 hay botón de paginación
-            if(not isAnotherDom):
-                nextButton = soupPage.find('li', class_="paginacion-siguiente")
-                listOfNews.append(nextButton.a['href'])
 
+            if(hasPagination):
+                nextButton = soupPage.find('li', class_="paginacion-siguiente")
+                if(nextButton):
+                    listOfNews.append(nextButton.a['href'])
+        
             # Parsear noticias
             for article in articles:
                 # Informacion de la noticia
                 try:
-                    if(not isAnotherDom):
+                    # Titulo y link
+                    if(typeOfArticle == 1):
                         title = article.select('.articulo-titulo')[0]
-                        date = article.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
                         link = title.select('a')[0].get('href')
                         if("elpais.com" not in link):
                             link = 'http://elpais.com' + link
                         else:
                             link = 'http:' + link
-                        author = article.select('.autor-nombre')[0]
-                    else:
-                        #2012-2016
-                        title = article.select('h2')[0]
-                        link = 'http://elpais.com' + title.select('a')[0].get('href')
-                    
+                    elif(typeOfArticle == 2):
+                        title = article.find(title="Ver noticia")
+                        link = 'http://elpais.com' + title['href']
+    
                     # Comprobar que no haya sido insertado ya en MongoDB
                     if(coleccion.find({"link": link}).count() == 0):
-                        # Cuerpo 
+                        # Cuerpo, autor y fecha
                         r = requests.get(link)
-                        if r.ok:
+                        if r.status_code == requests.codes.ok:
                             soupNews = BeautifulSoup(r.text, "lxml")
-                            if(not isAnotherDom):
-                                bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"}).get_text()
-                            else:
-                                bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"}).get_text()
-                                date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
-                                author = soupNews.select('.autor-nombre')[0]
+                            bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"})
+                            date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
+                            author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
+                            listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
+                        
                         # Guardar en MongoDB
-                        savePosts(link, date, title.get_text(), author.get_text(), bodyArticle)
+                        savePosts(
+                            link, 
+                            date, 
+                            title.get_text(), 
+                            author.get_text() if author != "" else "", 
+                            listTags, 
+                            bodyArticle.get_text() if bodyArticle else "")
+
                 except Exception as e:
+                    # print("Error:", e, link)
                     continue
 
-def setParser():
-    # Loop para cada link generado (yearFrom to yearTo)
-    for url in _listCreateUrl:
-        print(url)
-        parseNewsTo2011(url)
-
 # Guardar noticias en MongoDB
-def savePosts(link, date, title, author, article):
+def savePosts(link, date, title, author, listTags, article):
     coleccion.save(
         {
             'link': link,
             'titulo': title,
             'fecha': date,
             'autor': author,
+            'tags': listTags,
             'noticia': article
         })
 
 # Comprobar rango de fechas
 def checkDates(d1, d2): 
-    if(d1 >= date(1976,1,1)):    
-        if(d1 <= d2):
-            return d2 <= datetime.date.today()
-        else:
-            return False
-    else:
-        return False
+    return(d1 >= date(1976,1,1) and d1 <= d2 and d2 <= datetime.date.today())
 
 if __name__ == "__main__":
     os.system("cls")
@@ -124,9 +143,7 @@ if __name__ == "__main__":
         if(checkDates(d1,d2)):
             coleccion = connectionMongoDB(sys.argv[3])
             start_time = time.time()
-            _listCreateUrl = []
-            createUrl(d1, d2)
-            setParser()
+            setTypeParser(d1, d2)
             elapsed_time = time.time() - start_time
             print("Tiempo ejecución:", elapsed_time)
         else:
@@ -134,4 +151,4 @@ if __name__ == "__main__":
             print("-------------------------------------------------------")
             print("Posibles causas:")
             print("-> La primera fecha tiene que ser menor que la segunda")
-            print("-> El año de inicio es como mínimo el 1-1-1976")
+            print("-> El año de inicio no puede ser menor que el 1-1-1976")
