@@ -39,47 +39,54 @@ def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
         except Exception as e:
             pass
 
-        if r.ok:
+        if r.status_code == requests.codes.ok:
             soupPage = BeautifulSoup(r.text, "lxml")
             articles = soupPage.select(classArticle)
+            
 
-        if(hasPagination):
-            nextButton = soupPage.find('li', class_="paginacion-siguiente")
-            if(nextButton):
-                listOfNews.append(nextButton.a['href'])
+            if(hasPagination):
+                nextButton = soupPage.find('li', class_="paginacion-siguiente")
+                if(nextButton):
+                    listOfNews.append(nextButton.a['href'])
+        
+            # Parsear noticias
+            for article in articles:
+                # Informacion de la noticia
+                try:
+                    # Titulo y link
+                    if(typeOfArticle == 1):
+                        title = article.select('.articulo-titulo')[0]
+                        link = title.select('a')[0].get('href')
+                        if("elpais.com" not in link):
+                            link = 'http://elpais.com' + link
+                        else:
+                            link = 'http:' + link
+                    elif(typeOfArticle == 2):
+                        title = article.find(title="Ver noticia")
+                        link = 'http://elpais.com' + title['href']
     
-        # Parsear noticias
-        for article in articles:
-            # Informacion de la noticia
-            try:
-                # Titulo y link
-                if(typeOfArticle == 1):
-                    title = article.select('.articulo-titulo')[0]
-                    link = title.select('a')[0].get('href')
-                    if("elpais.com" not in link):
-                        link = 'http://elpais.com' + link
-                    else:
-                        link = 'http:' + link
-                elif(typeOfArticle == 2):
-                    title = article.find(title="Ver noticia")
-                    link = 'http://elpais.com' + title['href']
-   
-                # Comprobar que no haya sido insertado ya en MongoDB
-                if(coleccion.find({"link": link}).count() == 0):
-                    # Cuerpo, autor y fecha
-                    r = requests.get(link)
-                    if r.ok:
-                        soupNews = BeautifulSoup(r.text, "lxml")
-                        bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"}).get_text()
-                        date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
-                        author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
-                        print("PASA")
-                        listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
-                    # Guardar en MongoDB
-                    savePosts(link, date, title.get_text(), author.get_text() if author != "" else "", listTags, bodyArticle)
-            except Exception as e:
-                print("Error:", e, link)
-                continue
+                    # Comprobar que no haya sido insertado ya en MongoDB
+                    if(coleccion.find({"link": link}).count() == 0):
+                        # Cuerpo, autor y fecha
+                        r = requests.get(link)
+                        if r.status_code == requests.codes.ok:
+                            soupNews = BeautifulSoup(r.text, "lxml")
+                            bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"})
+                            date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
+                            author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
+                            listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
+                        # Guardar en MongoDB
+                        savePosts(
+                            link, 
+                            date, 
+                            title.get_text(), 
+                            author.get_text() if author != "" else "", 
+                            listTags, 
+                            bodyArticle.get_text() if bodyArticle else ""
+                        )
+                except Exception as e:
+                    # print("Error:", e, link)
+                    continue
 
 def setParser():
     # parserGeneric(url, classArticle, hasPagination, typeOfArticle):
@@ -88,8 +95,8 @@ def setParser():
         print(url)
         if(baseUrlTo2011 in url):
             parserGeneric(url, 'div .articulo__interior', True, 1)
-        # elif(baseUrlToCurrent in url):
-        #     parserGeneric(url, 'div .article', False, 2)
+        elif(baseUrlToCurrent in url):
+            parserGeneric(url, 'div .article', False, 2)
         
 # Guardar noticias en MongoDB
 def savePosts(link, date, title, author, listTags, article):
