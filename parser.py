@@ -10,7 +10,25 @@ from connectMongoDB import connectionMongoDB
 baseUrlTo2011 = "https://elpais.com/tag/fecha/"
 baseUrlToCurrent = "https://elpais.com/hemeroteca/elpais/"
 
-def createUrl(d1, d2):
+# def createUrl(d1, d2):
+#     '''
+#     Crear una lista con todas las combinacion de YearMesDay
+#     Año inicio ElPais: 1976
+#     Año final ElPais con el mismo formato de url: 2011
+#     1976 - 2011:
+#         Formato final: https://elpais.com/tag/fecha/YearMesDay
+#     2012 - Actual
+#         Formato final: https://elpais.com/hemeroteca/elpais/YearMesDay/(m|t|n)
+#     '''
+#     delta = d2 - d1  # timedelta
+#     for i in range(delta.days + 1):
+#         if((d1 + timedelta(i)) < date(2012,1,1)):
+#             _listCreateUrl.append(baseUrlTo2011 + (d1 + timedelta(i)).strftime("%Y%m%d"))
+#         else:
+#             for x in ["/m", "/t", "/n"]:
+#                 _listCreateUrl.append(baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x)
+
+def setTypeParser(d1, d2):
     '''
     Crear una lista con todas las combinacion de YearMesDay
     Año inicio ElPais: 1976
@@ -19,15 +37,23 @@ def createUrl(d1, d2):
         Formato final: https://elpais.com/tag/fecha/YearMesDay
     2012 - Actual
         Formato final: https://elpais.com/hemeroteca/elpais/YearMesDay/(m|t|n)
+
+    parserGeneric(url, classArticle, hasPagination, typeOfArticle):
+    typeOfArticle = (1: 1976-2011, 2016-Current), (2: 2012-2015)
     '''
     delta = d2 - d1  # timedelta
     for i in range(delta.days + 1):
         if((d1 + timedelta(i)) < date(2012,1,1)):
-            _listCreateUrl.append(baseUrlTo2011 + (d1 + timedelta(i)).strftime("%Y%m%d"))
+            url = baseUrlTo2011 + (d1 + timedelta(i)).strftime("%Y%m%d")
+            parserGeneric(url, 'div .articulo__interior', True, 1)
+        elif((d1 + timedelta(i)) < date(2016,1,1)):
+            for x in ["/m", "/t", "/n"]:
+                url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
+                parserGeneric(url, 'div .article', False, 2)
         else:
             for x in ["/m", "/t", "/n"]:
-                _listCreateUrl.append(baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x)
-
+                url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
+                parserGeneric(url, 'div .articulo__interior', False, 1)
 
 def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
     listOfNews = [url]
@@ -75,6 +101,7 @@ def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
                             date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
                             author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
                             listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
+                        
                         # Guardar en MongoDB
                         savePosts(
                             link, 
@@ -82,22 +109,12 @@ def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
                             title.get_text(), 
                             author.get_text() if author != "" else "", 
                             listTags, 
-                            bodyArticle.get_text() if bodyArticle else ""
-                        )
+                            bodyArticle.get_text() if bodyArticle else "")
+
                 except Exception as e:
                     # print("Error:", e, link)
                     continue
 
-def setParser():
-    # parserGeneric(url, classArticle, hasPagination, typeOfArticle):
-    # typeOfArticle = (1: 1976 - 2011), (2: 2012-2016)
-    for url in _listCreateUrl:
-        print(url)
-        if(baseUrlTo2011 in url):
-            parserGeneric(url, 'div .articulo__interior', True, 1)
-        elif(baseUrlToCurrent in url):
-            parserGeneric(url, 'div .article', False, 2)
-        
 # Guardar noticias en MongoDB
 def savePosts(link, date, title, author, listTags, article):
     coleccion.save(
@@ -112,13 +129,7 @@ def savePosts(link, date, title, author, listTags, article):
 
 # Comprobar rango de fechas
 def checkDates(d1, d2): 
-    if(d1 >= date(1976,1,1)):    
-        if(d1 <= d2):
-            return d2 <= datetime.date.today()
-        else:
-            return False
-    else:
-        return False
+    return(d1 >= date(1976,1,1) and d1 <= d2 and d2 <= datetime.date.today())
 
 if __name__ == "__main__":
     os.system("cls")
@@ -132,9 +143,7 @@ if __name__ == "__main__":
         if(checkDates(d1,d2)):
             coleccion = connectionMongoDB(sys.argv[3])
             start_time = time.time()
-            _listCreateUrl = []
-            createUrl(d1, d2)
-            setParser()
+            setTypeParser(d1, d2)
             elapsed_time = time.time() - start_time
             print("Tiempo ejecución:", elapsed_time)
         else:
@@ -142,4 +151,4 @@ if __name__ == "__main__":
             print("-------------------------------------------------------")
             print("Posibles causas:")
             print("-> La primera fecha tiene que ser menor que la segunda")
-            print("-> El año de inicio es como mínimo el 1-1-1976")
+            print("-> El año de inicio no puede ser menor que el 1-1-1976")
