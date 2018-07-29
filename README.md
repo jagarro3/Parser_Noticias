@@ -6,4 +6,6 @@ Este programa recopila todas la noticias del periodico EL País. Su hemeroteca o
 
 # Entrada del programa
 
-python .\parserElPais.py [02-06-1976] [12-11-1986] nombreColeccionMongoDB
+Ejemplo:
+
+python .\parser.py 02-06-1976 12-11-1986 nombreColeccionMongoDB
