@@ -19,23 +19,40 @@ def makeUrlOfDay(d1, d2):
 def getLinkOfArticles(url):
     r = requests.get(url)
     soupPage = BeautifulSoup(r.text, "lxml")
-    # for article in soupPage.select('ul.archive-articles > li > a'):
-    #     parserArticle('http://www.dailymail.co.uk' + article['href'])
+    for article in soupPage.select('ul.archive-articles > li > a'):
+        parserArticle('http://www.dailymail.co.uk' + article['href'])
 
 def parserArticle(urlArticle):
-    urlArticle = "http://www.dailymail.co.uk/tvshowbiz/article-5225449/Gemma-Collins-James-Argent-perform-romantic-duet.html"
-    r = requests.get(urlArticle)
-    soupPage = BeautifulSoup(r.text, "lxml")
+    if(coleccion.find({"link": urlArticle}).count() == 0):
+        r = requests.get(urlArticle)
+        soupPage = BeautifulSoup(r.text, "lxml")
 
-    title = soupPage.select_one('div.article-text > h2')
-    body = ""
-    for p in soupPage.select("p.mol-para-with-font"):
-        body = body + p.get_text()
-    date = soupPage.select('meta[itemprop=dateModified]')[0].get('content').split('T')[0]
+        title = soupPage.select_one('div.article-text > h2')
+        body = ""
+        for p in soupPage.select('div[itemprop=articleBody] > p'):
+            body = body + p.get_text()
+
+        date = soupPage.select_one('meta[itemprop=dateModified]').get('content').split('T')[0]
+        author = soupPage.select_one('meta[itemprop=name]').get('content')
+        tags = soupPage.select_one('meta[name=news_keywords]').get('content')
+        description = soupPage.select_one('meta[name=description]').get('content')
+
+        savePosts(urlArticle, date, title.get_text(), author, tags, description, body)
+
+def savePosts(link, date, title, author, listTags, description, body):
+    coleccion.save(
+        {
+            'link': link,
+            'titulo': title,
+            'fecha': date,
+            'autor': author,
+            'tags': listTags,
+            'descripcion': description,
+            'noticia': body
+        })
 
 def checkDates(d1, d2):
     return(d1 >= date(1994, 1, 1) and d1 <= d2 and d2 <= datetime.date.today())
-
 
 if __name__ == "__main__":
     os.system("cls")
@@ -50,7 +67,6 @@ if __name__ == "__main__":
             coleccion = connectionMongoDB(sys.argv[3])
             start_time = time.time()
             makeUrlOfDay(d1, d2)
-            parserArticle("d")
             elapsed_time = time.time() - start_time
             print("Tiempo ejecución:", elapsed_time)
         else:
