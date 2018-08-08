@@ -2,7 +2,7 @@
 
 # Descripción
 
-Este programa recopila todas la noticias del periodico EL País. Su hemeroteca ofrece todas las noticias desde el 1976
+Este programa recopila todas la noticias del periodico El País. Su hemeroteca ofrece todas las noticias desde el 1976
 
 # Requisitos
 
