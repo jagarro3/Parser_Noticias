@@ -98,7 +98,7 @@ def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
                         if r.status_code == requests.codes.ok:
                             soupNews = BeautifulSoup(r.text, "lxml")
                             bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"})
-                            date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
+                            date = soupNews.select('meta[itemprop=dateModified]')[0].get('content').split('T')[0]
                             author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
                             listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
                         
