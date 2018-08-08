@@ -7,53 +7,19 @@ import datetime
 from datetime import date, timedelta
 from connectMongoDB import connectionMongoDB
 
-baseUrlTo2011 = "https://elpais.com/tag/fecha/"
-baseUrlToCurrent = "https://elpais.com/hemeroteca/elpais/"
-
-# def createUrl(d1, d2):
-#     '''
-#     Crear una lista con todas las combinacion de YearMesDay
-#     Año inicio ElPais: 1976
-#     Año final ElPais con el mismo formato de url: 2011
-#     1976 - 2011:
-#         Formato final: https://elpais.com/tag/fecha/YearMesDay
-#     2012 - Actual
-#         Formato final: https://elpais.com/hemeroteca/elpais/YearMesDay/(m|t|n)
-#     '''
-#     delta = d2 - d1  # timedelta
-#     for i in range(delta.days + 1):
-#         if((d1 + timedelta(i)) < date(2012,1,1)):
-#             _listCreateUrl.append(baseUrlTo2011 + (d1 + timedelta(i)).strftime("%Y%m%d"))
-#         else:
-#             for x in ["/m", "/t", "/n"]:
-#                 _listCreateUrl.append(baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x)
+baseUrl = "http://www.elmundo.es/elmundo/hemeroteca/"
 
 def setTypeParser(d1, d2):
     '''
     Crear una lista con todas las combinacion de YearMesDay
-    Año inicio ElPais: 1976
-    Año final ElPais con el mismo formato de url: 2011
-    1976 - 2011:
-        Formato final: https://elpais.com/tag/fecha/YearMesDay
-    2012 - Actual
-        Formato final: https://elpais.com/hemeroteca/elpais/YearMesDay/(m|t|n)
-
+    Año inicio El Mundo: 2002
     parserGeneric(url, classArticle, hasPagination, typeOfArticle):
     typeOfArticle = (1: 1976-2011, 2016-Current), (2: 2012-2015)
     '''
     delta = d2 - d1  # timedelta
     for i in range(delta.days + 1):
-        if((d1 + timedelta(i)) < date(2012,1,1)):
-            url = baseUrlTo2011 + (d1 + timedelta(i)).strftime("%Y%m%d")
-            parserGeneric(url, 'div .articulo__interior', True, 1)
-        elif((d1 + timedelta(i)) < date(2016,1,1)):
-            for x in ["/m", "/t", "/n"]:
-                url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
-                parserGeneric(url, 'div .article', False, 2)
-        else:
-            for x in ["/m", "/t", "/n"]:
-                url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
-                parserGeneric(url, 'div .articulo__interior', False, 1)
+        for x in ["/m", "/t", "/n"]:
+            url = baseUrl + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
 
 def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
     listOfNews = [url]
