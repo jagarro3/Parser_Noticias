@@ -5,7 +5,7 @@ import pymongo
 from pymongo import MongoClient
 
 def connectionMongoDB(nameDb):
-    client = MongoClient('localhost', 27017)
+    client = MongoClient('localhost', 27017, maxPoolSize = 10)
     db = client.periodicos
     hayColecciones = db.collection_names(include_system_collections=False)
     if nameDb not in hayColecciones:
