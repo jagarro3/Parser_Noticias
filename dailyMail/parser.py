@@ -14,7 +14,7 @@ baseUrl = "http://www.dailymail.co.uk/home/sitemaparchive/day_"
 urlLinks = []
 
 def makeUrlOfDay(d1, d2):
-    delta = d2 - d1  # timedelta
+    delta = d2 - d1
     for i in range(delta.days + 1):
         url = baseUrl + (d1 + timedelta(i)).strftime("%Y%m%d") + ".html"
         getLinkOfArticles(url)
