@@ -10,7 +10,6 @@ from connectMongoDB import connectionMongoDB
 baseUrlTo2011 = "https://elpais.com/tag/fecha/"
 baseUrlToCurrent = "https://elpais.com/hemeroteca/elpais/"
 
-
 def setTypeParser(d1, d2):
     '''
     Crear una lista con todas las combinacion de YearMesDay
@@ -31,15 +30,12 @@ def setTypeParser(d1, d2):
             parserGeneric(url, 'div .articulo__interior', True, 1)
         elif((d1 + timedelta(i)) < date(2016, 1, 1)):
             for x in ["/m", "/t", "/n"]:
-                url = baseUrlToCurrent + \
-                    (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
+                url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
                 parserGeneric(url, 'div .article', False, 2)
         else:
             for x in ["/m", "/t", "/n"]:
-                url = baseUrlToCurrent + \
-                    (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
+                url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
                 parserGeneric(url, 'div .articulo__interior', False, 1)
-
 
 def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
     listOfNews = [url]
@@ -54,7 +50,6 @@ def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
         if r.status_code == requests.codes.ok:
             soupPage = BeautifulSoup(r.text, "lxml")
             articles = soupPage.select(classArticle)
-
             if(hasPagination):
                 nextButton = soupPage.find('li', class_="paginacion-siguiente")
                 if(nextButton):
@@ -83,14 +78,18 @@ def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
                         if r.status_code == requests.codes.ok:
                             soupNews = BeautifulSoup(r.text, "lxml")
                             bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"})
-                            date = soupNews.select('meta[itemprop=dateModified]')[0].get('content').split('T')[0]
+                            # Limpiar posibles script y style en el cuerpo de la noticia
+                            for script in bodyArticle(["script", "style"]):
+                                script.extract()
+                            # date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
+                            date = soupNews.select('.articulo-actualizado')[0].get('datetime').split('T')[0]
                             author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
                             listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
-
+                        
                         # Guardar en MongoDB
                         savePosts(
                             link,
-                            date,
+                            datetime.datetime.strptime(date, '%Y-%m-%d'),
                             title.get_text(),
                             author.get_text() if author != "" else "",
                             listTags,
