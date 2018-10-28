@@ -81,8 +81,8 @@ def parserGeneric(url, classArticle, hasPagination, typeOfArticle):
                             # Limpiar posibles script y style en el cuerpo de la noticia
                             for script in bodyArticle(["script", "style"]):
                                 script.extract()
-                            # date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
-                            date = soupNews.select('.articulo-actualizado')[0].get('datetime').split('T')[0]
+                            date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
+                            # date = soupNews.select('.articulo-actualizado')[0].get('datetime').split('T')[0]
                             author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
                             listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
                         
