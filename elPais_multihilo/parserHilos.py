@@ -45,7 +45,7 @@ def setTypeParser(d1, d2):
 
 def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
     listOfNews = [listOfUrls[0]]
-    
+    bodyArticle = ''
     # Loop para cada noticias teniendo en cuenta la paginación de la web
     for linkArticle in listOfNews:
         
@@ -87,16 +87,22 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
                             r = requests.get(link)
                             if r.status_code == requests.codes.ok:
                                 soupNews = BeautifulSoup(r.text, "lxml")
-                                bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"})
                                 
-                                # Limpiar posibles script y style en el cuerpo de la noticia
-                                for script in bodyArticle(["script", "style"]):
-                                    script.extract()
+                                # bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"})
+                                
+                                for p in soupNews.select('div[itemprop="articleBody"] > p'):
+                                    bodyArticle = bodyArticle + p.get_text()
+
+                                # # Limpiar posibles script y style en el cuerpo de la noticia
+                                # for script in bodyArticle(["script", "style"]):
+                                #     script.extract()
+
                                 date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
                                 # date = soupNews.select('.articulo-actualizado')[0].get('datetime').split('T')[0]
                                 author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
-                                listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
-                            
+                                # listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
+                                description = soupNews.select_one('meta[name="description"]').get('content')
+                                listTags = [tag for tag in soupNews.select_one('meta[name=news_keywords]').get('content').split(',')]
                             # Guardar en MongoDB y comprobar por segunda vez si el link ya está insertado
                             # Se comprueba porque puede dar el caso de que otro hilo no lo haya insertado aun
                             if(coleccion.find({"link": link}).count() == 0):
@@ -106,7 +112,8 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
                                     title.get_text(), 
                                     author.get_text() if author != "" else "", 
                                     listTags, 
-                                    bodyArticle.get_text() if bodyArticle else "",
+                                    description,
+                                    bodyArticle,
                                     coleccion)
 
                     except Exception as e:
@@ -117,7 +124,7 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
             continue
 
 # Guardar noticias en MongoDB
-def savePosts(link, date, title, author, listTags, article, coleccion):
+def savePosts(link, date, title, author, listTags, description, bodyArticle, coleccion):
     coleccion.save(
         {
             'link': link,
@@ -125,7 +132,8 @@ def savePosts(link, date, title, author, listTags, article, coleccion):
             'fecha': date,
             'autor': author,
             'tags': listTags,
-            'noticia': article
+            'descripcion': description,
+            'noticia': bodyArticle
         })
 
 # Comprobar rango de fechas

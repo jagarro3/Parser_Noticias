@@ -44,7 +44,8 @@ def parserArticle(urlArticle):
 
             date = soupPage.select_one('meta[itemprop=dateModified]').get('content').split('T')[0]
             author = soupPage.select_one('meta[itemprop=name]').get('content')
-            tags = soupPage.select_one('meta[name=news_keywords]').get('content')
+            # tags = soupPage.select_one('meta[name=news_keywords]').get('content')
+            tags = [tag for tag in soupPage.select_one('meta[name=news_keywords]').get('content').split(',')]
             description = soupPage.select_one('meta[name=description]').get('content')
 
             savePosts(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)

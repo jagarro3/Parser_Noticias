@@ -40,7 +40,12 @@ def parserArticle(urlArticle, coleccion = connectionMongoDB(sys.argv[3])):
             # Noticia
             for p in soupPage.select('span[itemprop=articleBody] > p'):
                 body = body + p.get_text()
-            
+
+            # Si el link es Ocio puede que la noticia esté en un div y no en un span
+            if not body:
+                for p in soupPage.select('div[itemprop=articleBody] > p'):
+                    body = body + p.get_text()
+
             # Fecha
             date = soupPage.select_one('meta[name=cXenseParse:recs:publishtime]').get('content').split('T')[0]
 
@@ -55,12 +60,14 @@ def parserArticle(urlArticle, coleccion = connectionMongoDB(sys.argv[3])):
             description = soupPage.select_one('meta[name=description]').get('content')
 
             # Tags. Si no hay tags metemos los keywords en tags
-            tags = [',' + tag.get('content') for tag in soupPage.find_all('meta[name=cXenseParse:epi-tags]')]
+            # tags = [',' + tag.get('content') for tag in soupPage.find_all('meta[name=cXenseParse:epi-tags]')]
+            tags = [x.get_text() for x in soupPage.find_all('meta[name=cXenseParse:epi-tags]')]
             if tags == []:
-                tags = soupPage.select_one('meta[name=keywords]').get('content')
+                tags = [tag for tag in soupPage.select_one('meta[name=keywords]').get('content').split(',')]
 
-            # Guardar noticia
-            savePosts(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)            
+            # Guardar noticia. Comprobar una vez mas si existe en la base de datos.
+            if(coleccion.find({"link": urlArticle}).count() == 0):
+                savePosts(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)            
         except Exception as e:   
             # print("Error:", e, urlArticle)
             pass
