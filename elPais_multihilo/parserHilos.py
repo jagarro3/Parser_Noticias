@@ -64,18 +64,19 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
         
                 # Parsear noticias
                 for article in articles:
-                    
                     # Informacion de la noticia
                     try:
-                        
                         # Titulo y link
                         if(listOfUrls[3] == 1):
                             title = article.select('.articulo-titulo')[0]
                             link = title.select('a')[0].get('href')
+                            
                             if("elpais.com" not in link):
-                                link = 'http://elpais.com' + link
-                            else:
-                                link = 'http:' + link
+                                link = 'elpais.com' + link
+                                if("http" not in link):
+                                    link = 'http://' + link
+                            # else:
+                            #     link = 'http:' + link
                         elif(listOfUrls[3] == 2):
                             title = article.find(title="Ver noticia")
                             link = 'http://elpais.com' + title['href']
@@ -117,7 +118,7 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
                                     coleccion)
 
                     except Exception as e:
-                        # print("Error:", e, link)
+                        print("Error:", e, link)
                         continue
         except Exception as e:
             print('Error en Beautifullsoup', e)
