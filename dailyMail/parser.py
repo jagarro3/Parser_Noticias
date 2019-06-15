@@ -31,24 +31,24 @@ def parserArticle(urlArticle):
     except Exception as e:
         print("Error conexión MongoDB:", e)
         pass
-
     title, body, date, author, tags, description = '', '', '', '', '', ''
     
     if(coleccion.find({"link": urlArticle}).count() == 0):
         try: 
             r = requests.get(urlArticle)
             soupPage = BeautifulSoup(r.text, "lxml")
-
+            
             title = author = soupPage.select_one('meta[property=og:title]').get('content')
             for p in soupPage.select('div[itemprop=articleBody] > p'):
                 body = body + p.get_text()
 
             date = soupPage.select_one('meta[itemprop=dateModified]').get('content').split('T')[0]
             author = soupPage.select_one('meta[itemprop=name]').get('content')
-            tags = soupPage.select_one('meta[name=news_keywords]').get('content')
+            # tags = soupPage.select_one('meta[name=news_keywords]').get('content')
+            tags = [tag for tag in soupPage.select_one('meta[name=news_keywords]').get('content').split(',')]
             description = soupPage.select_one('meta[name=description]').get('content')
 
-            savePosts(urlArticle, date, title, author, tags, description, body, coleccion)
+            savePosts(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)
         except Exception as e:
             print("Error:", e)
             pass
