@@ -47,21 +47,21 @@ def parse_links(urlArticle, coleccion = connectionMongoDB(sys.argv[3])):
                     body = body + p.get_text()
 
             # Fecha
-            date = soupPage.select_one('meta[name=cXenseParse:recs:publishtime]').get('content').split('T')[0]
+            date = soupPage.select_one('meta[name="cXenseParse:recs:publishtime"]').get('content').split('T')[0]
 
             # Autor
             author = soupPage.select_one('span[itemprop=author]')
             if author == None:
-                author = soupPage.select_one('meta[name=author]').get('content')
+                author = soupPage.select_one('meta[name=author]').get('content').strip()
             else:
-                author = author.get_text()
+                author = author.get_text().strip()
             
             # Descripción
             description = soupPage.select_one('meta[name=description]').get('content')
 
             # Tags. Si no hay tags metemos los keywords en tags
             # tags = [',' + tag.get('content') for tag in soupPage.find_all('meta[name=cXenseParse:epi-tags]')]
-            tags = [x.get_text() for x in soupPage.find_all('meta[name=cXenseParse:epi-tags]')]
+            tags = [x.get_text() for x in soupPage.find_all('meta[name="cXenseParse:epi-tags"]')]
             if tags == []:
                 tags = [tag for tag in soupPage.select_one('meta[name=keywords]').get('content').split(',')]
 
