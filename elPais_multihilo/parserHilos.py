@@ -19,7 +19,7 @@ baseUrlToCurrent = "https://elpais.com/hemeroteca/elpais/"
 # typeOfArticle = (1: 1976-2011, 2016-Current), (2: 2012-2015)
 listOfUrls = []
 
-def setTypeParser(d1, d2):
+def generate_links(d1, d2):
     '''
     Crear una lista con todas las combinacion de YearMesDay
     Año inicio ElPais: 1976
@@ -27,7 +27,7 @@ def setTypeParser(d1, d2):
     1976 - 2011:
         Formato final: https://elpais.com/tag/fecha/YearMesDay
     2012 - Actual
-        Formato final: https://elpais.com/hemeroteca/elpais/YearMesDay/(m|t|n)
+        Formato final: https://elpais.com/hemeroteca/elpais/Year/Mes/Day/(m|t|n)
     '''
     delta = d2 - d1  # timedelta
     for i in range(delta.days + 1):
@@ -43,7 +43,7 @@ def setTypeParser(d1, d2):
                 url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
                 listOfUrls.append([url, 'div .articulo__interior', False, 1])
 
-def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
+def parse_links(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
     listOfNews = [listOfUrls[0]]
     bodyArticle = ''
     # Loop para cada noticias teniendo en cuenta la paginación de la web
@@ -107,7 +107,7 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
                             # Guardar en MongoDB y comprobar por segunda vez si el link ya está insertado
                             # Se comprueba porque puede dar el caso de que otro hilo no lo haya insertado aun
                             if(coleccion.find({"link": link}).count() == 0):
-                                savePosts(
+                                save_articles(
                                     link, 
                                     datetime.datetime.strptime(date, '%Y-%m-%d'), 
                                     title.get_text(), 
@@ -125,7 +125,7 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
             continue
 
 # Guardar noticias en MongoDB
-def savePosts(link, date, title, author, listTags, description, bodyArticle, coleccion):
+def save_articles(link, date, title, author, listTags, description, bodyArticle, coleccion):
     coleccion.save(
         {
             'link': link,
@@ -152,11 +152,11 @@ if __name__ == "__main__":
         d2 = date(int(sys.argv[2].split('-')[2]), int(sys.argv[2].split('-')[1]), int(sys.argv[2].split('-')[0]))
         if(checkDates(d1,d2)):
             start_time = time.time()
-            setTypeParser(d1, d2)
+            generate_links(d1, d2)
             
             # Multiprocessing
             with Pool(6) as p:
-                p.map(parserGeneric, listOfUrls)
+                p.map(parse_links, listOfUrls)
             # END Multiprocessing
             
             elapsed_time = time.time() - start_time

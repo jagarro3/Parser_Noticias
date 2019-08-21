@@ -11,13 +11,13 @@ from multiprocessing import Pool, Value
 baseUrl = "https://www.levante-emv.com"
 urlLinks = []
 
-def makeUrlOfDay(d1, d2):
+def generate_links(d1, d2):
     delta = d2 - d1
     for i in range(delta.days + 1):
         url = baseUrl + (d1 + timedelta(i)).strftime("/%Y/%m/%d")
-        getLinkOfArticles(url)
+        get_all_links(url)
         
-def getLinkOfArticles(url):
+def get_all_links(url):
     r = requests.get(url)
     soupPage = BeautifulSoup(r.text, "lxml")
     for link in soupPage.select('a[data-tipo="noticia"]'):
@@ -26,7 +26,7 @@ def getLinkOfArticles(url):
         else:
             urlLinks.append(baseUrl + link['href'])
 
-def parserArticle(urlArticle, coleccion = connectionMongoDB(sys.argv[3])):
+def parse_links(urlArticle, coleccion = connectionMongoDB(sys.argv[3])):
     title, body, date, author, tags, description = '', '', '', '', '', ''
     
     if(coleccion.find({"link": urlArticle}).count() == 0):
@@ -67,13 +67,13 @@ def parserArticle(urlArticle, coleccion = connectionMongoDB(sys.argv[3])):
 
             # Guardar noticia. Comprobar una vez mas si existe en la base de datos.
             if(coleccion.find({"link": urlArticle}).count() == 0):
-                savePosts(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)            
+                save_articles(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)            
         except Exception as e:   
             # print("Error:", e, urlArticle)
             pass
 
 # Guardar noticias en MongoDB
-def savePosts(link, date, title, author, tags, description, body, coleccion):
+def save_articles(link, date, title, author, tags, description, body, coleccion):
     coleccion.save(
         {
             'link': link,
@@ -100,11 +100,11 @@ if __name__ == "__main__":
         d2 = date(int(sys.argv[2].split('-')[2]), int(sys.argv[2].split('-')[1]), int(sys.argv[2].split('-')[0]))
         if(checkDates(d1,d2)):
             start_time = time.time()
-            makeUrlOfDay(d1, d2)
+            generate_links(d1, d2)
 
             # Multiprocessing
             with Pool(10) as p:
-                p.map(parserArticle, urlLinks)
+                p.map(parse_links, urlLinks)
             # END Multiprocessing
 
             elapsed_time = time.time() - start_time
