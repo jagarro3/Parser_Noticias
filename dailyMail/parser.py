@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import sys
 import time
@@ -12,6 +13,7 @@ from connectMongoDB import connectionMongoDB
 
 baseUrl = "http://www.dailymail.co.uk/home/sitemaparchive/day_"
 urlLinks = []
+coleccion = connectionMongoDB(sys.argv[3])
 
 def makeUrlOfDay(d1, d2):
     delta = d2 - d1
@@ -26,11 +28,6 @@ def getLinkOfArticles(url):
         urlLinks.append('http://www.dailymail.co.uk' + article['href'])
 
 def parserArticle(urlArticle):
-    try:
-        coleccion = connectionMongoDB(sys.argv[3])
-    except Exception as e:
-        print("Error conexión MongoDB:", e)
-        pass
     title, body, date, author, tags, description = '', '', '', '', '', ''
     
     if(coleccion.find({"link": urlArticle}).count() == 0):
@@ -38,17 +35,15 @@ def parserArticle(urlArticle):
             r = requests.get(urlArticle)
             soupPage = BeautifulSoup(r.text, "lxml")
             
-            title = author = soupPage.select_one('meta[property=og:title]').get('content')
+            title = author = soupPage.select_one('meta[property="og:title"]').get('content')
             for p in soupPage.select('div[itemprop=articleBody] > p'):
                 body = body + p.get_text()
-
-            date = soupPage.select_one('meta[itemprop=dateModified]').get('content').split('T')[0]
-            author = soupPage.select_one('meta[itemprop=name]').get('content')
-            # tags = soupPage.select_one('meta[name=news_keywords]').get('content')
+            
+            date = json.loads(soupPage.find('script', type='application/ld+json').text)
+            author = json.loads(soupPage.find('script', type='application/ld+json').text)["author"]["name"]
             tags = [tag for tag in soupPage.select_one('meta[name=news_keywords]').get('content').split(',')]
             description = soupPage.select_one('meta[name=description]').get('content')
-
-            savePosts(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)
+            savePosts(urlArticle, datetime.datetime.strptime(date["datePublished"].split("T")[0], '%Y-%m-%d'), title, author, tags, description, body, coleccion)
         except Exception as e:
             print("Error:", e)
             pass
@@ -79,7 +74,9 @@ if __name__ == "__main__":
         d2 = date(int(sys.argv[2].split('-')[2]), int(sys.argv[2].split('-')[1]), int(sys.argv[2].split('-')[0]))
         if(checkDates(d1, d2)):
             start_time = time.time()
+            print("Generando links noticias")
             makeUrlOfDay(d1, d2)
+            print("Parseando noticias")
             # Multiprocessing
             with Pool(10) as p:
                 p.map(parserArticle, urlLinks)
