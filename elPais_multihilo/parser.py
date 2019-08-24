@@ -84,9 +84,15 @@ def parse_links(listOfUrls):
                             if r.status_code == requests.codes.ok:
                                 soupNews = BeautifulSoup(r.text, "lxml")
                                 
+                                bodyArticle = ""
+
                                 # Body
                                 for p in soupNews.select('div[itemprop="articleBody"] > p'):
-                                    bodyArticle = bodyArticle + p.get_text()
+                                    if p.has_attr('class'):
+                                        if p['class'][0] == 'siguenos_opinion' or p['class'][0] == 'nota_pie':
+                                            continue
+                                    else:
+                                        bodyArticle = bodyArticle + p.get_text()
 
                                 # # Limpiar posibles script y style en el cuerpo de la noticia
                                 # for script in bodyArticle(["script", "style"]):
