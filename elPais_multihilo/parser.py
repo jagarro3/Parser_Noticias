@@ -18,8 +18,9 @@ baseUrlToCurrent = "https://elpais.com/hemeroteca/elpais/"
 # hasPagination indica si la web tiene paginación o no
 # typeOfArticle = (1: 1976-2011, 2016-Current), (2: 2012-2015)
 listOfUrls = []
+coleccion = connectionMongoDB(sys.argv[3]) if len(sys.argv) == 4 else None
 
-def setTypeParser(d1, d2):
+def generate_links(d1, d2):
     '''
     Crear una lista con todas las combinacion de YearMesDay
     Año inicio ElPais: 1976
@@ -27,7 +28,7 @@ def setTypeParser(d1, d2):
     1976 - 2011:
         Formato final: https://elpais.com/tag/fecha/YearMesDay
     2012 - Actual
-        Formato final: https://elpais.com/hemeroteca/elpais/YearMesDay/(m|t|n)
+        Formato final: https://elpais.com/hemeroteca/elpais/Year/Mes/Day/(m|t|n)
     '''
     delta = d2 - d1  # timedelta
     for i in range(delta.days + 1):
@@ -43,7 +44,7 @@ def setTypeParser(d1, d2):
                 url = baseUrlToCurrent + (d1 + timedelta(i)).strftime("%Y/%m/%d") + x
                 listOfUrls.append([url, 'div .articulo__interior', False, 1])
 
-def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
+def parse_links(listOfUrls):
     listOfNews = [listOfUrls[0]]
     bodyArticle = ''
     # Loop para cada noticias teniendo en cuenta la paginación de la web
@@ -52,11 +53,9 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
         # Procesar pagina
         try:
             r = requests.get(linkArticle)
-    
             if r.status_code == requests.codes.ok:
                 soupPage = BeautifulSoup(r.text, "lxml")
                 articles = soupPage.select(listOfUrls[1])
-                
                 if(listOfUrls[2]):
                     nextButton = soupPage.find('li', class_="paginacion-siguiente")
                     if(nextButton):
@@ -75,22 +74,17 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
                                 link = 'elpais.com' + link
                                 if("http" not in link):
                                     link = 'http://' + link
-                            # else:
-                            #     link = 'http:' + link
                         elif(listOfUrls[3] == 2):
                             title = article.find(title="Ver noticia")
                             link = 'http://elpais.com' + title['href']
         
                         # Comprobar que no haya sido insertado ya en MongoDB
                         if(coleccion.find({"link": link}).count() == 0):
-                           
-                            # Cuerpo, autor y fecha
                             r = requests.get(link)
                             if r.status_code == requests.codes.ok:
                                 soupNews = BeautifulSoup(r.text, "lxml")
                                 
-                                # bodyArticle = soupNews.find("div", {"id": "cuerpo_noticia"})
-                                
+                                # Body
                                 for p in soupNews.select('div[itemprop="articleBody"] > p'):
                                     bodyArticle = bodyArticle + p.get_text()
 
@@ -99,33 +93,32 @@ def parserGeneric(listOfUrls, coleccion = connectionMongoDB(sys.argv[3])):
                                 #     script.extract()
 
                                 date = soupNews.select('meta[itemprop=datePublished]')[0].get('content').split('T')[0]
-                                # date = soupNews.select('.articulo-actualizado')[0].get('datetime').split('T')[0]
                                 author = soupNews.select('.autor-nombre')[0] if soupNews.select('.autor-nombre') else ""
-                                # listTags = [x.get_text() for x in soupNews.find_all("div", {"id": "articulo-tags__interior"})]
                                 description = soupNews.select_one('meta[name="description"]').get('content')
                                 listTags = [tag for tag in soupNews.select_one('meta[name=news_keywords]').get('content').split(',')]
+                            
                             # Guardar en MongoDB y comprobar por segunda vez si el link ya está insertado
                             # Se comprueba porque puede dar el caso de que otro hilo no lo haya insertado aun
                             if(coleccion.find({"link": link}).count() == 0):
-                                savePosts(
+                                save_articles(
                                     link, 
                                     datetime.datetime.strptime(date, '%Y-%m-%d'), 
-                                    title.get_text(), 
-                                    author.get_text() if author != "" else "", 
+                                    title.get_text().strip(), 
+                                    author.get_text().strip() if author != "" else "", 
                                     listTags, 
                                     description,
                                     bodyArticle,
                                     coleccion)
 
                     except Exception as e:
-                        print("Error:", e, link)
+                        #print("Error:", e, link)
                         continue
         except Exception as e:
             print('Error en Beautifullsoup', e)
             continue
 
 # Guardar noticias en MongoDB
-def savePosts(link, date, title, author, listTags, description, bodyArticle, coleccion):
+def save_articles(link, date, title, author, listTags, description, bodyArticle, coleccion):
     coleccion.save(
         {
             'link': link,
@@ -152,11 +145,14 @@ if __name__ == "__main__":
         d2 = date(int(sys.argv[2].split('-')[2]), int(sys.argv[2].split('-')[1]), int(sys.argv[2].split('-')[0]))
         if(checkDates(d1,d2)):
             start_time = time.time()
-            setTypeParser(d1, d2)
+            
+            print("Generando links noticias")
+            generate_links(d1, d2)
             
             # Multiprocessing
+            print("Parseando noticias")
             with Pool(6) as p:
-                p.map(parserGeneric, listOfUrls)
+                p.map(parse_links, listOfUrls)
             # END Multiprocessing
             
             elapsed_time = time.time() - start_time

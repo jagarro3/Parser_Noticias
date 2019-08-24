@@ -103,5 +103,7 @@ venv.bak/
 # mypy
 .mypy_cache/
 dailyMail/salida
-dailyMail/salida.txt
 levante/salida.txt
+dailyMail/salida.txt
+.vscode/settings.json
+elPais_multihilo/salida.txt

@@ -1,23 +1,26 @@
-import requests
-from bs4 import BeautifulSoup
+import datetime
 import os
 import sys
 import time
-import datetime
 from datetime import date, timedelta
+from multiprocessing import Pool
+
+import requests
+from bs4 import BeautifulSoup
+
 from connectMongoDB import connectionMongoDB
-from multiprocessing import Pool, Value
 
 baseUrl = "https://www.levante-emv.com"
 urlLinks = []
+coleccion = connectionMongoDB(sys.argv[3]) if len(sys.argv) == 4 else None
 
-def makeUrlOfDay(d1, d2):
+def generate_links(d1, d2):
     delta = d2 - d1
     for i in range(delta.days + 1):
         url = baseUrl + (d1 + timedelta(i)).strftime("/%Y/%m/%d")
-        getLinkOfArticles(url)
+        get_all_links(url)
         
-def getLinkOfArticles(url):
+def get_all_links(url):
     r = requests.get(url)
     soupPage = BeautifulSoup(r.text, "lxml")
     for link in soupPage.select('a[data-tipo="noticia"]'):
@@ -26,54 +29,48 @@ def getLinkOfArticles(url):
         else:
             urlLinks.append(baseUrl + link['href'])
 
-def parserArticle(urlArticle, coleccion = connectionMongoDB(sys.argv[3])):
+def parse_links(urlArticle):
     title, body, date, author, tags, description = '', '', '', '', '', ''
     
     if(coleccion.find({"link": urlArticle}).count() == 0):
         try: 
             r = requests.get(urlArticle)
             soupPage = BeautifulSoup(r.text, "lxml")
-            
+
             # Titulo
             title = soupPage.select_one('meta[itemprop=name]').get('content')
-
             # Noticia
             for p in soupPage.select('span[itemprop=articleBody] > p'):
                 body = body + p.get_text()
-
             # Si el link es Ocio puede que la noticia esté en un div y no en un span
             if not body:
                 for p in soupPage.select('div[itemprop=articleBody] > p'):
                     body = body + p.get_text()
-
             # Fecha
-            date = soupPage.select_one('meta[name=cXenseParse:recs:publishtime]').get('content').split('T')[0]
-
+            date = soupPage.select_one('meta[name="cXenseParse:recs:publishtime"]').get('content').split('T')[0]
             # Autor
             author = soupPage.select_one('span[itemprop=author]')
             if author == None:
-                author = soupPage.select_one('meta[name=author]').get('content')
+                author = soupPage.select_one('meta[name=author]').get('content').strip()
             else:
-                author = author.get_text()
-            
+                author = author.get_text().strip()
             # Descripción
             description = soupPage.select_one('meta[name=description]').get('content')
 
             # Tags. Si no hay tags metemos los keywords en tags
-            # tags = [',' + tag.get('content') for tag in soupPage.find_all('meta[name=cXenseParse:epi-tags]')]
-            tags = [x.get_text() for x in soupPage.find_all('meta[name=cXenseParse:epi-tags]')]
+            tags = [x.get_text() for x in soupPage.find_all('meta[name="cXenseParse:epi-tags"]')]
             if tags == []:
                 tags = [tag for tag in soupPage.select_one('meta[name=keywords]').get('content').split(',')]
 
             # Guardar noticia. Comprobar una vez mas si existe en la base de datos.
             if(coleccion.find({"link": urlArticle}).count() == 0):
-                savePosts(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)            
+                save_articles(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)            
         except Exception as e:   
-            # print("Error:", e, urlArticle)
+            print("Error:", e, urlArticle)
             pass
 
 # Guardar noticias en MongoDB
-def savePosts(link, date, title, author, tags, description, body, coleccion):
+def save_articles(link, date, title, author, tags, description, body, coleccion):
     coleccion.save(
         {
             'link': link,
@@ -98,13 +95,17 @@ if __name__ == "__main__":
     else:
         d1 = date(int(sys.argv[1].split('-')[2]), int(sys.argv[1].split('-')[1]), int(sys.argv[1].split('-')[0]))
         d2 = date(int(sys.argv[2].split('-')[2]), int(sys.argv[2].split('-')[1]), int(sys.argv[2].split('-')[0]))
+        
         if(checkDates(d1,d2)):
             start_time = time.time()
-            makeUrlOfDay(d1, d2)
 
+            print("Generando links noticias")
+            generate_links(d1, d2)
+           
             # Multiprocessing
+            print("Parseando noticias")
             with Pool(10) as p:
-                p.map(parserArticle, urlLinks)
+                p.map(parse_links, urlLinks)
             # END Multiprocessing
 
             elapsed_time = time.time() - start_time
