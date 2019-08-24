@@ -4,7 +4,7 @@ import os
 import sys
 import time
 from datetime import date, timedelta
-from multiprocessing import Pool, Value
+from multiprocessing import Pool
 
 import requests
 from bs4 import BeautifulSoup
@@ -13,21 +13,21 @@ from connectMongoDB import connectionMongoDB
 
 baseUrl = "http://www.dailymail.co.uk/home/sitemaparchive/day_"
 urlLinks = []
-coleccion = connectionMongoDB(sys.argv[3])
+coleccion = connectionMongoDB(sys.argv[3]) if len(sys.argv) == 4 else None
 
-def makeUrlOfDay(d1, d2):
+def generate_links(d1, d2):
     delta = d2 - d1
     for i in range(delta.days + 1):
         url = baseUrl + (d1 + timedelta(i)).strftime("%Y%m%d") + ".html"
-        getLinkOfArticles(url)
+        get_links_of_day(url)
         
-def getLinkOfArticles(url):
+def get_links_of_day(url):
     r = requests.get(url)
     soupPage = BeautifulSoup(r.text, "lxml")
     for article in soupPage.select('ul.archive-articles > li > a'):
         urlLinks.append('http://www.dailymail.co.uk' + article['href'])
 
-def parserArticle(urlArticle):
+def parse_links(urlArticle):
     title, body, date, author, tags, description = '', '', '', '', '', ''
     
     if(coleccion.find({"link": urlArticle}).count() == 0):
@@ -45,7 +45,7 @@ def parserArticle(urlArticle):
             description = soupPage.select_one('meta[name=description]').get('content')
             savePosts(urlArticle, datetime.datetime.strptime(date["datePublished"].split("T")[0], '%Y-%m-%d'), title, author, tags, description, body, coleccion)
         except Exception as e:
-            print("Error:", e)
+            print("Error:", e, urlArticle)
             pass
 
 def savePosts(link, date, title, author, listTags, description, body, coleccion):
@@ -72,15 +72,19 @@ if __name__ == "__main__":
     else:
         d1 = date(int(sys.argv[1].split('-')[2]), int(sys.argv[1].split('-')[1]), int(sys.argv[1].split('-')[0]))
         d2 = date(int(sys.argv[2].split('-')[2]), int(sys.argv[2].split('-')[1]), int(sys.argv[2].split('-')[0]))
+        
         if(checkDates(d1, d2)):
             start_time = time.time()
+
             print("Generando links noticias")
-            makeUrlOfDay(d1, d2)
-            print("Parseando noticias")
+            generate_links(d1, d2)
+
             # Multiprocessing
+            print("Parseando noticias")
             with Pool(10) as p:
-                p.map(parserArticle, urlLinks)
+                p.map(parse_links, urlLinks)
             # END Multiprocessing
+
             elapsed_time = time.time() - start_time
             print("Tiempo ejecución:", elapsed_time)
         else:
