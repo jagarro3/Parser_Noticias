@@ -24,10 +24,11 @@ def get_all_links(url):
     r = requests.get(url)
     soupPage = BeautifulSoup(r.text, "lxml")
     for link in soupPage.select('a[data-tipo="noticia"]'):
-        if ('http' or 'https') in link['href']:
-            urlLinks.append(link['href'])
-        else:
-            urlLinks.append(baseUrl + link['href'])
+        if link['href'] != '/':
+            if ('http' or 'https') in link['href']:
+                urlLinks.append(link['href'])
+            else:
+                urlLinks.append(baseUrl + link['href'])
 
 def parse_links(urlArticle):
     title, body, date, author, tags, description = '', '', '', '', '', ''
@@ -66,7 +67,7 @@ def parse_links(urlArticle):
             if(coleccion.find({"link": urlArticle}).count() == 0):
                 save_articles(urlArticle, datetime.datetime.strptime(date, '%Y-%m-%d'), title, author, tags, description, body, coleccion)            
         except Exception as e:   
-            print("Error:", e, urlArticle)
+            #print("Error:", e, urlArticle)
             pass
 
 # Guardar noticias en MongoDB
@@ -98,18 +99,18 @@ if __name__ == "__main__":
         
         if(checkDates(d1,d2)):
             start_time = time.time()
-
-            print("Generando links noticias")
+            
+            print("Generando links noticias - ", datetime.datetime.now().time())
             generate_links(d1, d2)
-           
+            
             # Multiprocessing
-            print("Parseando noticias")
+            print("Parseando noticias - ", datetime.datetime.now().time())
             with Pool(10) as p:
                 p.map(parse_links, urlLinks)
             # END Multiprocessing
-
+            
             elapsed_time = time.time() - start_time
-            print("Tiempo ejecución:", elapsed_time)
+            print("Tiempo ejecución:", elapsed_time, " - ", datetime.datetime.now().time())
         else:
             print("Rango de fechas incorrecto")
             print("-------------------------------------------------------")

@@ -45,7 +45,7 @@ def parse_links(urlArticle):
             description = soupPage.select_one('meta[name=description]').get('content')
             savePosts(urlArticle, datetime.datetime.strptime(date["datePublished"].split("T")[0], '%Y-%m-%d'), title, author, tags, description, body, coleccion)
         except Exception as e:
-            print("Error:", e, urlArticle)
+            #print("Error:", e, urlArticle)
             pass
 
 def savePosts(link, date, title, author, listTags, description, body, coleccion):
@@ -75,18 +75,18 @@ if __name__ == "__main__":
         
         if(checkDates(d1, d2)):
             start_time = time.time()
-
-            print("Generando links noticias")
+            
+            print("Generando links noticias - ", datetime.datetime.now().time())
             generate_links(d1, d2)
-
+            
             # Multiprocessing
-            print("Parseando noticias")
+            print("Parseando noticias - ", datetime.datetime.now().time())
             with Pool(10) as p:
                 p.map(parse_links, urlLinks)
             # END Multiprocessing
-
+            
             elapsed_time = time.time() - start_time
-            print("Tiempo ejecución:", elapsed_time)
+            print("Tiempo ejecución:", elapsed_time, " - ", datetime.datetime.now().time())
         else:
             print("Rango de fechas incorrecto")
             print("-------------------------------------------------------")
