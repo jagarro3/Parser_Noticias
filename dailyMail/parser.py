@@ -14,6 +14,8 @@ from connectMongoDB import connectionMongoDB
 baseUrl = "http://www.dailymail.co.uk/home/sitemaparchive/day_"
 urlLinks = []
 coleccion = connectionMongoDB(sys.argv[3]) if len(sys.argv) == 4 else None
+s = requests.Session()
+s.max_redirects = 2
 
 def generate_links(d1, d2):
     delta = d2 - d1
@@ -25,25 +27,38 @@ def get_links_of_day(url):
     r = requests.get(url)
     soupPage = BeautifulSoup(r.text, "lxml")
     for article in soupPage.select('ul.archive-articles > li > a'):
-        urlLinks.append('http://www.dailymail.co.uk' + article['href'])
+        urlLinks.append('https://www.dailymail.co.uk' + article['href'])
 
 def parse_links(urlArticle):
     title, body, date, author, tags, description = '', '', '', '', '', ''
     
     if(coleccion.find({"link": urlArticle}).count() == 0):
         try: 
-            r = requests.get(urlArticle)
+            # start_time = time.time()
+            r = s.get(urlArticle)
+            print("Tamaño:", len(r.content), urlArticle)
+            # elapsed_time = time.time() - start_time
+            # print("Tiempo descarga noticia:", elapsed_time, " - ", datetime.datetime.now().time() , " ", urlArticle)
             soupPage = BeautifulSoup(r.text, "lxml")
-            
+
             title = author = soupPage.select_one('meta[property="og:title"]').get('content')
             for p in soupPage.select('div[itemprop=articleBody] > p'):
                 body = body + p.get_text()
             
             date = json.loads(soupPage.find('script', type='application/ld+json').text)
+
+            if date["datePublished"]:
+                date = datetime.datetime.strptime(date["datePublished"].split("T")[0], '%Y-%m-%d')
+            elif date["dateModified"]:
+                date = datetime.datetime.strptime(date["dateModified"].split("T")[0], '%Y-%m-%d')
+            else:
+                date = ""
+
             author = json.loads(soupPage.find('script', type='application/ld+json').text)["author"]["name"]
             tags = [tag for tag in soupPage.select_one('meta[name=news_keywords]').get('content').split(',')]
             description = soupPage.select_one('meta[name=description]').get('content')
-            savePosts(urlArticle, datetime.datetime.strptime(date["datePublished"].split("T")[0], '%Y-%m-%d'), title, author, tags, description, body, coleccion)
+
+            savePosts(urlArticle, date, title, author, tags, description, body, coleccion)
         except Exception as e:
             print("Error:", e, urlArticle)
             pass
@@ -75,18 +90,18 @@ if __name__ == "__main__":
         
         if(checkDates(d1, d2)):
             start_time = time.time()
-
-            print("Generando links noticias")
+            
+            print("Generando links noticias - ", datetime.datetime.now().time())
             generate_links(d1, d2)
 
             # Multiprocessing
-            print("Parseando noticias")
+            print("Parseando noticias - ", datetime.datetime.now().time())
             with Pool(10) as p:
                 p.map(parse_links, urlLinks)
             # END Multiprocessing
-
+            
             elapsed_time = time.time() - start_time
-            print("Tiempo ejecución:", elapsed_time)
+            print("Tiempo ejecución:", elapsed_time, " - ", datetime.datetime.now().time())
         else:
             print("Rango de fechas incorrecto")
             print("-------------------------------------------------------")

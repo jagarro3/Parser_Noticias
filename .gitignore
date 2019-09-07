@@ -107,3 +107,6 @@ levante/salida.txt
 dailyMail/salida.txt
 .vscode/settings.json
 elPais_multihilo/salida.txt
+elPais_multihilo/sin_hilos_1766.txt
+elPais_multihilo/con_hilos_1766.txt
+.vscode/launch.json
